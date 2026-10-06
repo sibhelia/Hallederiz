@@ -1,0 +1,81 @@
+# Kullanım (repo kökünden):
+#   docker compose --env-file .env -f infra/docker-compose.yml up -d
+name: hallederiz
+
+services:
+  db:
+    build: ./db
+    image: hallederiz-db:16
+    restart: unless-stopped
+    env_file:
+      - path: ../.env
+        required: false
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-hallederiz}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hallederiz_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-hallederiz}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-hallederiz}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-hallederiz_dev_secret}
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web konsolu
+    volumes:
+      - minio_data:/data
+
+  backend:
+    build: ../backend
+    restart: unless-stopped
+    env_file:
+      - path: ../.env
+        required: false
+    environment:
+      # Konteyner içinden servislere servis adlarıyla erişilir
+      POSTGRES_HOST: db
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT_URL: http://minio:9000
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../backend/app:/app/app
+      - ../backend/alembic:/app/alembic
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  db_data:
+  redis_data:
+  minio_data:
