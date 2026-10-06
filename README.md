@@ -39,10 +39,10 @@ cp .env.example .env
 # .env içindeki GROQ_API_KEY değerini doldur
 ```
 
-### 2. Altyapıyı başlat (PostgreSQL + PostGIS + pgvector, Redis, MinIO)
+### 2. Altyapıyı başlat (PostgreSQL + PostGIS + pgvector, Redis)
 
 ```bash
-docker compose --env-file .env -f infra/docker-compose.yml up -d db redis minio
+docker compose --env-file .env -f infra/docker-compose.yml up -d db redis
 ```
 
 ### 3. Backend'i çalıştır
@@ -66,7 +66,6 @@ uv run uvicorn app.main:app --reload
 
 - API dokümantasyonu: http://localhost:8000/docs
 - Sağlık kontrolü: http://localhost:8000/api/v1/health
-- MinIO konsolu: http://localhost:9001 (kullanıcı/şifre `.env` içinde)
 
 ### Testler
 
